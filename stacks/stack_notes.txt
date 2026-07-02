@@ -1,0 +1,423 @@
+﻿              The Stack — Complete DSA Notes
+
+
+A stack is a LIFO(Last In First Out)container. The last thing you push is the first thing you pop.
+
+A stack only exposes the top. You cannot look at or touch anything below it without popping first.
+
+
+ 
+Core operations, all O(1):
+
+OperationMeaningpush(x)add x to the toppop()remove and return the toppeek() / top()look at the top without removingisEmpty()is the stack empty?size()number of elements
+
+Because push/pop/peek are all O(1), a stack-based solution is usually O(n) time overall — each element is pushed at most once and popped at most once.
+
+
+Implementing a stack in Python
+
+A plain Python `list` is a stack: `append` is push, `pop()` is pop, `[-1]` is peek.
+
+
+python
+stack = []
+stack.append(1)        # push
+stack.append(2)
+top = stack[-1]          # peek -> 2
+val = stack.pop()      # pop  -> 2
+empty = not stack    # isEmpty -> False
+n = len(stack)          # size -> 1
+
+• Always check `if stack:` before `pop()` or `stack[-1]`. Popping or indexing an empty list throws (`IndexError`). This empty-check is the single most common source of bugs in stack problems.
+
+`collections.deque` (when you want an explicit stack)
+
+`list.pop()` from the end is O(1), so a list is fine. But `deque` communicates intent and gives O(1) at both ends:
+
+python
+from collections import deque
+stack = deque()
+stack.append(1)   # push
+stack.pop()       # pop from the right
+```
+
+Use a plain list unless you have a reason not to. Both are fine for interviews.
+
+A custom class (only if a problem literally asks you to design one)
+
+class Stack:
+    def __init__(self):
+        self._data = []
+
+    def push(self, x):
+        self._data.append(x)
+
+    def pop(self):
+        if not self._data:
+            raise IndexError("pop from empty stack")
+        return self._data.pop()
+
+    def peek(self):
+        if not self._data:
+            raise IndexError("peek from empty stack")
+        return self._data[-1]
+
+    def is_empty(self):
+        return len(self._data) == 0
+
+    def size(self):
+        return len(self._data)
+
+
+
+How to recognize a stack problem
+
+1. **Matching / nesting** — parentheses, brackets, tags, or any "open then later close" structure. The stack holds the currently-open items.
+2. **"Most recent unresolved" logic** — you process left to right and repeatedly need the *last* thing you haven't dealt with yet. Undo, backtracking, function-call order.
+3. **"Next greater / next smaller" element** — for each item, find the nearest item to its left or right that is bigger/smaller. This is the **monotonic stack** pattern.
+4. **Expression evaluation** — Reverse Polish Notation, calculators, converting infix/postfix.
+5. **Reversal via LIFO** — a stack naturally reverses order.
+6. **Iterative tree/graph traversal** — a stack replaces the implicit recursion call stack (DFS).
+
+If you see any of these, a stack is probably the tool.
+
+
+The patterns (with tested code)
+
+Master these six and you cover the vast majority of problems.
+
+Pattern A — Matching pairs (Valid Parentheses)
+
+Given a string of brackets, decide if they're validly matched and nested.
+
+**Idea:** push every opening bracket. On a closing bracket, the top of the stack *must* be its matching opener — pop and check. At the end the stack must be empty (no unclosed openers).
+
+```python
+def isValid(s):
+    stack = []
+    pairs = {')': '(', ']': '[', '}': '{'}   # closer -> opener
+    for ch in s:
+        if ch in pairs:                       # it's a closer
+            if not stack or stack.pop() != pairs[ch]:
+                return False
+        else:                                 # it's an opener
+            stack.append(ch)
+    return not stack                          # must end empty
+```
+
+
+**Same pattern:** 921 (Minimum Add to Make Parentheses Valid), 1249 (Minimum Remove to Make Valid), 1047 (Remove All Adjacent Duplicates), 32 (Longest Valid Parentheses — harder).
+
+---
+
+Pattern B — Monotonic stack (Next Greater Element)
+
+This is the highest-value pattern to learn. A **monotonic stack** keeps its elements in sorted order (increasing or decreasing). When a new element would break the order, you pop everything that violates it — and *that pop is the answer* to something.
+
+**LeetCode 496 / 503 core: Next Greater Element.** For each element, find the next element to its right that is larger.
+
+**Idea:** keep a stack of indices whose "next greater" we haven't found yet, kept in **decreasing** value order. When a new number is bigger than the value at the top, it *is* the next-greater for that top — pop and record.
+
+```python
+def nextGreater(nums):
+    res = [-1] * len(nums)
+    stack = []                                # indices; values decreasing
+    for i, n in enumerate(nums):
+        while stack and nums[stack[-1]] < n:  # n resolves these
+            res[stack.pop()] = n
+        stack.append(i)
+    return res
+
+# nextGreater([2,1,2,4,3]) -> [4, 2, 4, -1, -1]
+```
+
+**The mental model:** each element waits on the stack until something bigger comes along to "answer" it. Elements still on the stack at the end never found anything bigger, so they keep `-1`.
+
+**Daily Temperatures (LeetCode 739)** is the same pattern — instead of the next greater *value*, you want the *distance* to it:
+
+```python
+def dailyTemperatures(T):
+    res = [0] * len(T)
+    stack = []                         # indices, temps decreasing
+    for i, t in enumerate(T):
+        while stack and T[stack[-1]] < t:
+            j = stack.pop()
+            res[j] = i - j             # distance, not value
+        stack.append(i)
+    return res
+
+# dailyTemperatures([73,74,75,71,69,72,76,73]) -> [1,1,4,2,1,1,0,0]
+```
+
+**Direction & strictness cheat-sheet for monotonic stacks:**
+
+| You want | Iterate | Stack keeps | Pop when |
+|----------|---------|-------------|----------|
+| Next greater (right) | left → right | decreasing | new > top |
+| Next smaller (right) | left → right | increasing | new < top |
+| Previous greater (left) | left → right | decreasing | new ≥ top (top becomes useless) |
+| Previous smaller (left) | left → right | increasing | new ≤ top |
+
+Don't memorize the table — derive it. Ask: "when a new element arrives, which stacked elements does it *resolve*, and can I stop caring about them?" Those get popped.
+
+**Practice:** 496, 503 (circular — iterate `2n` with `i % n`), 739, 901 (Stock Spanner), 1019 (Next Greater in Linked List).
+
+---
+
+### Pattern C — Expression evaluation
+
+**Reverse Polish Notation (LeetCode 150).** Operators come *after* their operands (`["2","1","+"]` means `2+1`). Push numbers; on an operator, pop the two most recent numbers, apply, push the result.
+
+```python
+def evalRPN(tokens):
+    stack = []
+    ops = {'+', '-', '*', '/'}
+    for t in tokens:
+        if t in ops:
+            b = stack.pop()          # note: b popped first (it's the right operand)
+            a = stack.pop()
+            if   t == '+': stack.append(a + b)
+            elif t == '-': stack.append(a - b)
+            elif t == '*': stack.append(a * b)
+            else:          stack.append(int(a / b))   # truncate toward zero
+        else:
+            stack.append(int(t))
+    return stack[0]
+
+# evalRPN(["4","13","5","/","+"]) -> 6
+```
+
+**Two gotchas:** order matters for `-` and `/` (the *first* pop is the right operand `b`); and Python's `//` floors toward negative infinity, so use `int(a / b)` to truncate toward zero as LeetCode expects.
+
+**Basic Calculator II (LeetCode 227)** handles `+ - * / ` with precedence but no parentheses. Trick: push `+num`/`-num` onto the stack, but for `*` and `/` immediately combine with the top of the stack. The final answer is `sum(stack)`.
+
+```python
+def calculate(s):
+    stack = []
+    num = 0
+    op = '+'                          # the operator *before* the current number
+    for i, ch in enumerate(s):
+        if ch.isdigit():
+            num = num * 10 + int(ch)
+        if ch in '+-*/' or i == len(s) - 1:   # time to resolve previous op
+            if   op == '+': stack.append(num)
+            elif op == '-': stack.append(-num)
+            elif op == '*': stack.append(stack.pop() * num)
+            else:           stack.append(int(stack.pop() / num))
+            op = ch
+            num = 0
+    return sum(stack)
+
+# calculate("3+5 / 2") -> 5   (3 + 2)
+```
+
+**Practice:** 150, 227, 224 (Basic Calculator — adds parentheses, harder), 772 (all operators + parens).
+
+---
+
+### Pattern D — Nested structure decoding
+
+**Decode String (LeetCode 394).** `"3[a2[c]]"` → `"accaccacc"`. Nested repetition. Whenever you hit `[`, you're going one level deeper; on `]` you resolve the innermost level. That "resume the outer context after finishing the inner one" is exactly a stack.
+
+**Idea:** push the *context* (the string built so far, and the repeat count) when you descend into a bracket. On `]`, pop the context and splice the finished inner string back in.
+
+```python
+def decodeString(s):
+    stack = []          # each entry: (string_before_the_bracket, repeat_count)
+    cur = ""
+    num = 0
+    for ch in s:
+        if ch.isdigit():
+            num = num * 10 + int(ch)     # multi-digit numbers
+        elif ch == '[':
+            stack.append((cur, num))     # save context, then reset
+            cur, num = "", 0
+        elif ch == ']':
+            prev, k = stack.pop()
+            cur = prev + cur * k         # splice inner into outer
+        else:
+            cur += ch
+    return cur
+
+# decodeString("3[a2[c]]") -> "accaccacc"
+```
+
+This "save context on the way in, restore on the way out" is the deep idea behind *all* nested-structure stack problems. **Practice:** 394, 1190 (Reverse Substrings Between Parentheses), 726 (Number of Atoms — harder, same skeleton).
+
+---
+
+### Pattern E — Design problems (Min Stack)
+
+**Min Stack (LeetCode 155).** Support push/pop/top plus `getMin()` in O(1). You can't scan the stack for the min each time (that's O(n)). Trick: store the running minimum *alongside* each value, so every level "remembers" the min at that point.
+
+```python
+class MinStack:
+    def __init__(self):
+        self.stack = []                  # store (value, min_so_far)
+
+    def push(self, val):
+        m = val if not self.stack else min(val, self.stack[-1][1])
+        self.stack.append((val, m))
+
+    def pop(self):
+        self.stack.pop()
+
+    def top(self):
+        return self.stack[-1][0]
+
+    def getMin(self):
+        return self.stack[-1][1]
+```
+
+Every operation is O(1). The insight — **augment each stack entry with extra bookkeeping** — recurs in many design problems. **Practice:** 155, 716 (Max Stack), 232 (Implement Queue using Stacks), 225 (Implement Stack using Queues).
+
+---
+
+### Pattern F — Stack as simulation
+
+Sometimes the stack literally models a physical process.
+
+**Asteroid Collision (LeetCode 735).** Positive = moving right, negative = moving left. Right-movers already on the stack can collide with an incoming left-mover.
+
+```python
+def asteroidCollision(asteroids):
+    stack = []
+    for a in asteroids:
+        alive = True
+        while alive and a < 0 and stack and stack[-1] > 0:  # collision possible
+            if stack[-1] < -a:          # top explodes, current survives, keep checking
+                stack.pop()
+                continue
+            elif stack[-1] == -a:       # both explode
+                stack.pop()
+            alive = False               # current is destroyed (or tied)
+        if alive:
+            stack.append(a)
+    return stack
+
+# asteroidCollision([5,10,-5]) -> [5,10]
+```
+
+**Backspace String Compare (LeetCode 844).** `#` means backspace — a `pop`. Build each string through a stack and compare.
+
+```python
+def backspaceCompare(s, t):
+    def build(string):
+        st = []
+        for c in string:
+            if c != '#':
+                st.append(c)
+            elif st:                    # '#' with something to delete
+                st.pop()
+        return st
+    return build(s) == build(t)
+
+# backspaceCompare("ab#c", "ad#c") -> True   (both become "ac")
+```
+
+**Practice:** 735, 844, 1047, 682 (Baseball Game), 946 (Validate Stack Sequences).
+
+---
+
+## 5. The famous hard one — Largest Rectangle in Histogram
+
+**LeetCode 84.** This is the monotonic-stack "boss level" and shows up in interviews a lot. Given bar heights, find the largest axis-aligned rectangle.
+
+**Idea:** keep a stack of indices with **increasing** heights. When a bar is shorter than the top, that top bar can't extend further right — so pop it and compute the largest rectangle *using that bar as the limiting height*. The width spans from just after the new stack top up to the current index. A sentinel `0` appended at the end flushes everything left on the stack.
+
+```python
+def largestRectangleArea(heights):
+    stack = []                          # indices, heights increasing
+    max_area = 0
+    heights = heights + [0]             # sentinel forces a final flush
+    for i, h in enumerate(heights):
+        while stack and heights[stack[-1]] > h:
+            height = heights[stack.pop()]
+            # width: from the element after the new top, up to i-1
+            width = i if not stack else i - stack[-1] - 1
+            max_area = max(max_area, height * width)
+        stack.append(i)
+    return max_area
+
+# largestRectangleArea([2,1,5,6,2,3]) -> 10   (the 5,6 pair: height 5 x width 2)
+```
+
+The width formula is the subtle part. When you pop bar `j`, the rectangle of height `heights[j]` extends left until the *new* stack top (the previous shorter bar) and right until `i`. If the stack is empty after popping, it extends all the way to the left edge, so width is just `i`. **Practice after this:** 85 (Maximal Rectangle — 2D version built on 84), 42 (Trapping Rain Water — solvable with a similar stack).
+
+---
+
+## 6. Stack for iterative DFS (replacing recursion)
+
+Recursion uses the call stack implicitly. When recursion depth could blow the stack, or an interviewer asks for iterative traversal, you manage the stack yourself.
+
+**Iterative binary tree inorder traversal (LeetCode 94):**
+
+```python
+def inorderTraversal(root):
+    res, stack = [], []
+    cur = root
+    while cur or stack:
+        while cur:              # go as far left as possible
+            stack.append(cur)
+            cur = cur.left
+        cur = stack.pop()       # backtrack to the last node
+        res.append(cur.val)     # visit
+        cur = cur.right         # then go right
+    return res
+```
+
+The stack holds the "ancestors I still need to come back to." **Practice:** 94, 144 (preorder), 145 (postorder — trickier), 173 (BST Iterator), 341 (Flatten Nested List Iterator).
+
+---
+
+## 7. Complexity — why stack solutions are fast
+
+Almost all stack solutions are **O(n) time**: each element is pushed at most once and popped at most once, so even though there's a `while` loop *inside* a `for` loop (as in the monotonic pattern), the total work across the whole run is linear — not O(n²). This "amortized" argument is worth being able to state out loud in an interview: *"the inner while looks nested, but each element enters and leaves the stack only once, so it's O(n) total."*
+
+Space is **O(n)** in the worst case (everything on the stack at once, e.g. a strictly increasing input for a next-greater problem).
+
+---
+
+## 8. Common bugs to check every time
+
+1. **Popping an empty stack.** Always guard: `if stack:` before `pop()`/`stack[-1]`.
+2. **Storing values vs. indices.** Monotonic-stack problems usually need *indices* (so you can compute distances/widths). Decide up front.
+3. **Strict vs. non-strict comparison** (`<` vs `<=`). This decides tie-breaking in monotonic stacks and is the difference between counting duplicates once or many times. Test on an input with equal adjacent values.
+4. **Operand order** in expression problems — the first `pop()` is the *right* operand.
+5. **Forgetting the final flush.** In histogram-style problems, elements can remain on the stack after the loop; a sentinel or a post-loop drain handles them.
+6. **Off-by-one in width/distance** formulas — trace a tiny example by hand.
+
+---
+
+## 9. Practice roadmap (in order)
+
+Work top to bottom; each tier builds on the last.
+
+**Tier 1 — warm up (matching & basics)**
+20 Valid Parentheses · 1047 Remove Adjacent Duplicates · 682 Baseball Game · 155 Min Stack · 844 Backspace Compare
+
+**Tier 2 — monotonic stack**
+496 Next Greater Element I · 739 Daily Temperatures · 503 Next Greater Element II · 901 Online Stock Span · 1019 Next Greater in Linked List
+
+**Tier 3 — expression & nesting**
+150 Evaluate RPN · 394 Decode String · 227 Basic Calculator II · 1190 Reverse Substrings Between Parentheses
+
+**Tier 4 — simulation & design**
+735 Asteroid Collision · 946 Validate Stack Sequences · 232 Queue using Stacks · 456 132 Pattern
+
+**Tier 5 — hard (monotonic mastery)**
+84 Largest Rectangle in Histogram · 85 Maximal Rectangle · 42 Trapping Rain Water · 316 Remove Duplicate Letters · 224 Basic Calculator
+
+**The learning loop:** for each problem, before coding, ask *"which of the six patterns is this?"* Naming the pattern first is what turns "I've seen this" into "I can solve this cold." If you can look at a new problem and say "that's a previous-smaller-element monotonic stack," you've internalized the material.
+
+---
+
+## 10. One-glance summary
+
+- Stack = **LIFO**, all core ops **O(1)**, in Python just use a `list` (`append`/`pop`/`[-1]`).
+- Reach for a stack when you see: **matching/nesting**, **most-recent-unresolved**, **next greater/smaller**, **expression evaluation**, **reversal**, or **iterative DFS**.
+- The six patterns: **(A)** matching pairs, **(B)** monotonic stack, **(C)** expression eval, **(D)** nested decoding, **(E)** augmented design, **(F)** simulation.
+- **Monotonic stack** is the highest-value pattern — learn to derive the increasing/decreasing choice from "which elements does the new one resolve?"
+- Almost everything is **O(n)** by the amortized "each element pushed/popped once" argument.
+- Guard against the **empty-stack pop**, decide **values vs indices**, and pin down **strict vs non-strict** comparisons.
+
